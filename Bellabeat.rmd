@@ -1,0 +1,308 @@
+---
+title: "Bellabeat: Google Data Analytics Case Study"
+author: "Aprajita Sambyal"
+date: "1/13/2022"
+output: html_document
+---
+## Background
+
+This project is part of a case study for the Google Data Analytics certification program.In this particular case study I'll be analyzing a public data set provided in the course, as a data analyst working on the marketing analyst team of a health and wellness company named Bellabeat. In this case study I'll be following the Ask-Prepare-Process-Analyze-Share-Act framework for analysis.
+
+## About the company
+
+Bellabeat is a high-tech company that manufactures health-focused smart products. Since it was founded in 2013, Bellabeat has grown rapidly and quickly positioned itself as a tech-driven wellness company for women.
+The company has a strong online and offline presence due to their various add campaigns across platforms.
+Urška Sršen, co founder and Chief Creative Officer of Bellabeat believes that the company has potential to grow and expand its business by analyzing trends in current usage of smart devices and therefore, would like high-level recommendations on how these trends can improve Bellabeat marketing strategy. 
+
+### Key Questions (Ask)
+
+1. What are some trends in smart device usage?
+2. How could these trends apply to Bellabeat customers?
+3. How could these trends help influence Bellabeat marketing strategy?
+
+## Business Task
+
+Identify the potential opportunities and recommendations for Bellabeat marketing strategy improvement by analyzing trends in existing SMART device usage data and implementing it to one of many Bellabeat SMART products.
+
+## About data (Prepare)
+
+* The data set to be used is a public data set available through [Kaggle](https://www.kaggle.com/arashnic/fitbit) and contains personal fitness tracker from thirty fitbit users.
+
+* The data set includes 18 csv files  that capture everything from daily activity, calories (daily, hourly and by minute), intensities (daily, hourly and by minute), number of steps (daily, hourly and by minute), heart rate, minute METs, sleep (Day and minute) and weight log info.
+
+* For the scope of this data analysis only a selection of the 18 data sets that were deemed relevant in addressing the business task were imported into RStudio.
+
+#### *Loading packages*
+For viewing and processing the datasets, appropriate tidyverse packages must be installed.
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(janitor)
+library(skimr)
+library(viridis)
+```
+
+#### *Importing datasets*
+
+I have pre-processed the data in Ms-Excel and excluded from analysis any data which was recorded by the minute or any insufficient ,redundant and duplicate data that would not have contributed to the analysis.
+
+```{r}
+#Reading the selected csv files in R
+
+activity <- read.csv("~/R-projects/Fitabase Data 4.12.16-5.12.16/dailyActivity_merged.csv")
+calories <- read.csv("~/R-projects/Fitabase Data 4.12.16-5.12.16/hourlyCalories_merged.csv")
+intensities <- read.csv("~/R-projects/Fitabase Data 4.12.16-5.12.16/hourlyIntensities_merged.csv")
+steps <- read.csv("~/R-projects/Fitabase Data 4.12.16-5.12.16/hourlySteps_merged.csv")
+sleep <- read.csv("~/R-projects/Fitabase Data 4.12.16-5.12.16/sleepDay_merged.csv")
+
+```
+
+```{r}
+#Previewing the loaded dataset
+
+glimpse(activity)
+glimpse(calories)
+glimpse(intensities)
+glimpse(steps)
+glimpse(sleep)
+```
+
+## Process 
+
+#### *Fixing formatting*
+
+The high level summary of the dataset exposed certain inconsistencies with the time stamp data which is shown as a character data type instead of a date.
+
+```{r}
+# formatting the timestamp columns in dataset
+
+activity$ActivityDate <-as.Date(activity$ActivityDate, format = "%m/%d/%Y")
+calories$ActivityHour <- mdy_hms(calories$ActivityHour)
+intensities$ActivityHour <-mdy_hms(intensities$ActivityHour)
+steps$ActivityHour <-mdy_hms(steps$ActivityHour)
+
+# the "SleepDate" column in daily sleep data renamed to ActivityDate for consistency and ease of use. 
+
+sleep$ActivityDate <- as.Date(sleep$ActivityDate, format = "%m/%d/%Y")
+
+```
+
+#### *Summarizing data*
+
+First, we need to make sure that our dataset has enough relevant data to make any useful conclusions out of it. For this, we need to make sure how many distinct observations are there in each separate set.
+
+```{r}
+# calculating distict data enteries
+
+n_distinct(activity$Id)
+n_distinct(calories$Id)
+n_distinct(intensities$Id)
+n_distinct(sleep$Id)
+n_distinct(steps$Id)
+```
+
+From the results we understand that there are 33 unique observations for "activity","steps","calories" and "intensities" and 24 for "sleep" data which we deem sufficient for present analysis although having more data would have been better.
+
+```{r}
+# Summarizing key elements
+
+#activity
+activity %>%  
+  select(TotalSteps, SedentaryMinutes, Calories) %>%
+  summary()
+
+# explore num of active minutes per category
+
+activity %>%
+  select(VeryActiveMinutes, FairlyActiveMinutes, LightlyActiveMinutes) %>%
+  summary()
+
+# calories
+calories %>%
+  select(Calories) %>%
+  summary()
+
+# sleep
+sleep %>%
+  select(TotalSleepRecords, TotalMinutesAsleep, TotalTimeInBed) %>%
+  summary()
+
+
+```
+
+#### *Key observations*
+
+* Mean "SedentaryMinutes" is 991 mins which is roughly 16 hrs. 
+* Average total steps per day 7638 which is below recommended.
+* Majority of participating candidates are only lightly active.
+* On an average participants sleep for 7 hrs at least once.
+
+## Analyze
+
+In order to analyze the data in a better way, data frames are merged based on whether the observations are provided at daily or hourly intervals .This can done using the “Id” column which is a shared key among all the data frames.
+
+#### *Merging data for analysis*
+
+The "activity" dataframe does not have any sleep records so we will merge the daily "sleep" datafame with it to draw a correlation between the two.This is done via "Id" and "ActivityDate" columns.
+
+```{r}
+daily_activity_with_sleep <- merge(activity,sleep, by=c("Id", "ActivityDate"))
+
+```
+
+Now that the data is ready, we can begin analyzing and visualizing it to discover trends and relationships.
+
+#### *Visualizing data *
+
+1. First plot is a relationship between total daily steps and total daily calories assuming more steps lead to more calorie burn. This is to check the sanity of our dataset
+
+```{r}
+ggplot(data=activity, aes(x=TotalSteps, y=Calories)) + 
+  geom_point(color="dark green") + geom_smooth(method = 'loess', formula= 'y ~ x') + labs(title="Total Steps vs. Calories", x= "Total Steps", y = "Calories")
+
+```
+As expected, there is a positive correlation between no.of steps to the amount of calories burned.
+
+2. The next plot aims to highlight a relationship between "Total Minutes Asleep" vs "Sedentary Minutes" for a high-level overview and then will use the merged dataframes for more conclusive answers.
+
+```{r}
+ggplot(data=daily_activity_with_sleep, aes(x=TotalMinutesAsleep, y=SedentaryMinutes)) + 
+  geom_point(color="dark green") + geom_smooth(formula = y ~ x, method=lm) +
+  labs(title="Minutes Asleep vs. Sedentary Minutes", x="Minutes Asleep",y="Sedentry Minutes")
+
+```
+
+From the above plot we clearly see a negative relationship between Sedentary Minutes and Sleep Time. This means participants having more sedentary minutes are not getting enough sleep.
+
+The next two plots aim to draw a relation between the "Daily Activity"  of participants and their "Sleep" duration to see if having an active lifestyle corresponds to having recommended hours of daily sleep (between 7-9 hrs for adults). Or are the participants compromising sleep to achieve active lifestyle. Also, we will to check if less active participants are oversleeping the recommended limit.
+
+*Scatter Plot 1:*
+
+This explores the relation between Daily activity and Sleep by using parameters “TotalMinutesAsleep”, “TotalSteps” and “Calories”.
+
+```{r}
+ggplot(data = daily_activity_with_sleep) +
+  labs(title = "Sleep vs Daily Activity (Total Steps & Calories)", x = "Total Time Asleep (min)", y = "Total Steps") + 
+  geom_point(mapping = aes( x = TotalMinutesAsleep, y = TotalSteps, color = Calories )) + 
+  scale_color_viridis(option = "D") +
+  geom_smooth(formula = y ~ x, method=lm, mapping = aes(y = TotalSteps, x = TotalMinutesAsleep), color = "blue") +
+  geom_vline(xintercept=420,linetype="dashed",size=.5, color = "red") +
+  geom_vline(xintercept=540,linetype="dashed",size=.5, color = "red")
+
+```
+
+
+*Scatter Plot 2:* 
+
+This plot uses "SedentaryMinutes" in place of "Calories" burned for correlating Daily activity and Sleep.
+Larger Sedentary minutes means lower activity.
+
+```{r}
+ggplot(data = daily_activity_with_sleep) +
+  labs(title = "Sleep vs Daily Activity (Total Steps & Sedentry Minutes)", x = "Total Time Asleep (min)", y = "Total Steps") + 
+  geom_point(mapping = aes( x = TotalMinutesAsleep, y = TotalSteps, color = SedentaryMinutes )) + 
+  scale_color_viridis(option = "D") +
+  geom_smooth(formula = y ~ x, method=lm, mapping = aes(y = TotalSteps, x = TotalMinutesAsleep), color = "blue") +
+  geom_vline(xintercept=420,linetype="dashed",size=.5, color = "red") +
+  geom_vline(xintercept=540,linetype="dashed",size=.5, color = "red")
+```
+
+The above two plots show that a large number of points fall outside of our 'Recommended Hours of Sleep' (red dotted lines in the plot) boundary irrespective of their level of daily activity ,therefore, users of all activity levels fail to comply with the recommended 7 to 9 hours of daily sleep. Let's make it more clear with some actual numbers.
+
+```{r}
+#No of participants who slept less than the recommended 7 hours (or 420 minutes)
+daily_activity_with_sleep %>%
+  count(TotalMinutesAsleep < 420)
+
+#No of participants who slept more than the recommended 9 hours (or 540 minutes)
+daily_activity_with_sleep %>%
+  count(TotalMinutesAsleep > 540)
+
+```
+
+Above results show that out of a total 410 participants,181 which is roughly 44% are not getting their minimum hours of sleep. Whereas, 39 participants i.e; 10% of the total are oversleeping their recommended hours.
+Also, we see that total steps and total sleep time are negatively related as can be seen from the best fit line which means most of the active participants tend not to get enough sleep.
+From the second plot we see that participants with higher sedentary minutes also do not tend to get enough sleep.
+This exposes an area where we can later recommend improvements.
+
+3. Next, comes plotting the "Average Intensities" and "Average Calories" data against time to find out what time of the day participants are most active.
+For this, we need to format the "ActivityHour" into separate date and time columns to plot intensities and calories by the hour.
+
+*Histogram  1:*
+
+Plotting Total Average Intensity at different specific hours of a day.
+
+```{r}
+intensities$time <- format(intensities$ActivityHour, format = "%H:%M:%S")
+intensities$date <- format(intensities$ActivityHour, format = "%m/%d/%y")
+
+intensity_new <- intensities %>%
+  group_by(time) %>%
+  drop_na() %>%
+  summarise(mean_total_intensity = mean(TotalIntensity))
+
+ggplot(data=intensity_new, aes(x=time, y=mean_total_intensity)) + geom_histogram(stat = "identity", fill="dark green") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title="Average Total Intensity vs. Time", x="Time", y="Average Intensity")
+```
+
+*Histogram  2:*
+
+Plotting Average Calories burned at specific hours of of day. 
+For this we are formatting the "ActivityHour" as a separate date and time column.
+
+```{r}
+calories$time <- format(calories$ActivityHour, format="%H:%M:%S")
+calories$date <- format(calories$ActivityHour, format = "%m/%d/%y")
+
+calorie_new <- calories %>%
+  group_by(time) %>%
+  drop_na() %>%
+  summarise(mean_calories = mean(Calories))
+
+ggplot(data=calorie_new, aes(x=time, y= mean_calories)) + 
+  geom_histogram(stat = "identity", fill="dark green") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title="Average Calories vs. Time", x="Time", y="Calories")
+
+```
+
+From the above two plots we see that irrespective of whether we measure by average calories or by average intensity, the most active time of the day for participants is evenings from 5 PM to 7 PM. This could be because the participants go for a run/walk or to the gym after usual office hours.
+
+## Share Recommendations & Act 
+
+Typically, all of the above findings will be shared in a compact powerpoint presentation with the stakeholders along with recommended actions.
+
+One majot thing to note here is that there is no information available in the dataset on the gender of the participants included in the survey whereas Bellabeat makes products targeted specificly for Women. Therefore, for the purpose of this case study it is assumed that all genders are present and balanced in the dataset.
+
+#### Key findings
+
+* Majority of participants are not getting enough hours of sleep irrespective of their activity level.
+* The sedentary time averaging 991 mins that is roughly 16 hrs a day is way too high.
+* Average total steps per day is 7638 which is again below the recommended 10,000 steps for adults.
+* Also, majority of active participants are only lightly active.
+
+#### Recommendations
+
+* While data cleaning we found out that available data on sleep is far less than the daily activity data. One reason for this could be because many people find it uncomfortable to wear a watch to sleep. "Leaf"-Bellabeat’s classic wellness tracker that can be worn as a bracelet, necklace, or clip can be marketed as a device that is comfortable enough to be worn at all times even during sleep.
+
+* Emphasizing that [Leaf battery lasts around 6 months](https://support.bellabeat.com/hc/en-us/articles/212804889-Replaceable-battery#:~:text=Leaf%20operates%20on%20a%20removable,it%20depends%20on%20various%20factors.) and doesn't need frequent charging can also prove beneficial.
+
+* From the Activity Vs Sleep plots we found out that majority of participants were not getting enough hours of sleep irrespective of their activity level. Bellabeat app can be used to send daily notifications on sleep and activity recommendations.
+For example on more active days users can be reminded to sleep at least 7 to 9 Hrs.
+
+* For users who are continuously oversleeping, Bellabeat app can add a nudge feature to recommend them to lower their sleep times.
+
+* To reduce sedentary time and encourage more activity Bellabeat can upload short / free yoga/warm-up/stretching videos on their app paired with notifications to encourage users to get up and do their kind of preferred activity.
+
+* Step activity can be increased by using social platforms for sharing daily/weekly step count with added step buddies and introduce challenges to beat high scores that will keep the users motivated.
+
+* As the data suggests that most active time of the day is between 5 PM to 7 PM. Bellabeat can partner with local gyms to organize group fitness sessions and park runs during this time to keep users motivated and it will encourage others to join.
+
+* Lastly, the lack of sufficient weight data suggests that most people are reluctant or unwilling to disclose or share their weight information with anybody. Bellabeat can encourage its users to share this  information by promoting body positivity and empower its users to feel safe inputting their weight information into a database.This data can then be used to suggest meal and exercise plans depending upon the user's preference to either lose, gain, or maintain their weight.
+
+
+
